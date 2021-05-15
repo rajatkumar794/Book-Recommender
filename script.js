@@ -19,7 +19,9 @@ authors = authors.map(function(author){
 
 let booksList = [];
 
+//IIFI main function
 (async function(){
+    //Launching browser
     let browser= await p.launch({
         headless:false,
         defaultViewport:null,
@@ -30,35 +32,41 @@ let booksList = [];
     let pages = await browser.pages();
     page=pages[0]
 
+    //Directing page to goodreads
     await page.goto("https://www.goodreads.com/")
     await page.click("#signIn .gr-hyperlink")
+
+    //Logging in with credentials
     await page.waitForSelector("#user_email")
     await page.type("#user_email", email)
     await page.type("#user_password", password)
     await page.click(".gr-button.gr-button--large")
     await page.waitForSelector(".searchBox__icon--magnifyingGlass.gr-iconButton.searchBox__icon.searchBox__icon--navbar")
     
+    //Extracting books information for all the authors
     for(let i=0 ; i<authors.length; i++){
         await page.type(".searchBox__input.searchBox__input--navbar",authors[i])
         await page.keyboard.press("Enter")
         await page.waitForNavigation()
         
+        //An async function to extract books information from browser to node js environment
         let getBooks= async function(){
             return await page.evaluate(async function(){
                 return await new Promise(function(resolve,reject){
                     let titlesContainer = document.querySelectorAll(".bookTitle")
                     let ratingsContainer = document.querySelectorAll(".minirating")
-                    let linksContainer = document.querySelectorAll(".bookTitle")
                     let ratings = []
                     let titles = []
                     let links = []
-                    let url = window.location.href
+                    //current url of the page
+                    let url = "https://www.goodreads.com"
                     for(let j=0; j<titlesContainer.length; ++j)
                     {   titles.push(titlesContainer[j].innerText.trim())
                         ratings.push(ratingsContainer[j].innerText.split(" ")[1])
-                        links.push(url+linksContainer[j].getAttribute("href"))
+                        links.push(url+titlesContainer[j].getAttribute("href"))
                     }
 
+                    //Sorting titles and links based on top ratings
                     let originalRatings = [...ratings]
                     ratings.sort()
                     ratings.reverse()
@@ -71,6 +79,8 @@ let booksList = [];
                         sortedTitles.push(titles[idx])
                         sortedLinks.push(links[idx])
                     }
+
+                    //Extracting top 5 books information
                     let booksInfoObj = {
                         "titles": sortedTitles.slice(0,5),
                         "ratings": ratings.slice(0,5),
@@ -83,7 +93,7 @@ let booksList = [];
             addBooks(page, booksInfo, authors[i])
             if(i==authors.length-1)
             {   generatePDF();
-                //sendEmail();
+                sendEmail();
                 browser.close()
             }
         });
@@ -91,6 +101,7 @@ let booksList = [];
     }
 })();
 
+//Function to store books information centrally
 function addBooks(page, booksInfo, author)
 {
     let obj = {}
@@ -101,7 +112,7 @@ function addBooks(page, booksInfo, author)
     booksList.push(obj)
 }
 
-
+//Function to generate PDF of the extracted information
 function generatePDF()
 {   
     var doc = new jsPDF();
@@ -128,6 +139,7 @@ function generatePDF()
     doc.save("myBookList.pdf");
 }
 
+//Function to send the generated PDF to the receipient
 function sendEmail() {
     const transporter = nodemailer.createTransport({
         service: 'gmail',
